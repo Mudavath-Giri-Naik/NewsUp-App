@@ -1,15 +1,14 @@
-# app/vision.py
-
 import os
 import base64
 import requests
 import json
 import pandas as pd
+import logging
 from dotenv import load_dotenv
+from typing import List
 
 # === CONFIGURATION ===
 load_dotenv()  # Load .env file
-CSV_FILE = "news_data.csv"
 API_KEY = os.getenv("GEMINI_API_KEY")  # Load API key from environment variables
 API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
 
@@ -34,7 +33,7 @@ The JSON format for each article should look like this:
 Notes:
 - articleId: Must continue from previous input.
 - title: Must match exactly as in image.
-- description: Full story in simple words — It should explain the entire news article clearly and completely. Start with what happened in the past (give relevant background and facts) and then explain what is happening now, as mentioned in the article. Write it like you're telling a story to someone who knows nothing about the topic — be factual, clear, and simple. Make sure there are no gaps or unanswered questions. Everything that is listed in the points section must also be explained here in full detail. The goal is that after reading this description, I should fully understand the topic — both its history and current developments — in just one read.
+- description: Full story in simple words — It should explain the entire news article clearly and completely. Start with what happened in the past (give relevant background and facts) and then explain what is happening now, as mentioned in the article. Write it like you're telling a story to someone who knows nothing about the topic — be factual, clear, and simple. Make sure there are no gaps or unanswered questions. Everything that is listed in the points section must also be explained here in full detail.
 - points: Key facts useful for UPSC or government exams.
 - glossary: All difficult/useful words along with meanings in simple words.
 
@@ -48,14 +47,12 @@ def encode_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode("utf-8")
 
-# === MAIN FUNCTION TO CALL FROM FLASK ===
-def extract_articles_from_images(image_folder="images"):
-    # Create CSV file if not exists
+def extract_articles_from_images(image_folder: str, csv_file: str) -> List[dict]:
     columns = ["articleId", "title", "description", "points", "glossary"]
-    if not os.path.exists(CSV_FILE):
-        pd.DataFrame(columns=columns).to_csv(CSV_FILE, index=False)
+    if not os.path.exists(csv_file):
+        pd.DataFrame(columns=columns).to_csv(csv_file, index=False)
 
-    article_id_counter = pd.read_csv(CSV_FILE).shape[0] + 1
+    article_id_counter = pd.read_csv(csv_file).shape[0] + 1
     extracted_articles = []
 
     for image_file in sorted(os.listdir(image_folder)):
@@ -86,13 +83,14 @@ def extract_articles_from_images(image_folder="images"):
                 try:
                     result_text = response.json()['candidates'][0]['content']['parts'][0]['text'].strip()
 
-                    # Cleanup markdown formatting like ```json
                     if result_text.startswith("```json"):
                         result_text = result_text.strip("`").split("json")[-1].strip()
                     elif result_text.startswith("```"):
                         result_text = result_text.strip("`").split("\n", 1)[-1].strip()
 
                     articles = json.loads(result_text)
+                    logging.info(f"✅ Extracted {len(articles)} articles from {image_file}")
+
                     rows = []
 
                     for art in articles:
@@ -107,12 +105,11 @@ def extract_articles_from_images(image_folder="images"):
                         extracted_articles.append(data)
                         article_id_counter += 1
 
-                    # Append to CSV
-                    pd.DataFrame(rows).to_csv(CSV_FILE, mode='a', header=False, index=False)
+                    pd.DataFrame(rows).to_csv(csv_file, mode='a', header=False, index=False)
 
                 except Exception as e:
-                    print(f"❌ Failed to parse response for {image_file}: {e}")
+                    logging.error(f"❌ Failed to parse response for {image_file}: {e}")
             else:
-                print(f"❌ API Error {response.status_code}: {response.text}")
+                logging.error(f"❌ API Error {response.status_code} - {response.text}")
 
     return extracted_articles
