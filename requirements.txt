@@ -2,6 +2,8 @@ fastapi
 uvicorn
 python-dotenv
 joblib
+python-multipart
+multipart
 scikit-learn
 requests
-pandas 
+pandas
