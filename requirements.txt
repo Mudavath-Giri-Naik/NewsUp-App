@@ -4,3 +4,4 @@ python-dotenv
 joblib
 scikit-learn
 requests
+pandas 
