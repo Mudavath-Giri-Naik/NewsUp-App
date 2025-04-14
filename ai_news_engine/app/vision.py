@@ -33,14 +33,15 @@ The JSON format for each article should look like this:
 Notes:
 - articleId: Must continue from previous input.
 - title: Must match exactly as in image.
-- description: Full story in simple words — It should explain the entire news article clearly and completely. Start with what happened in the past (give relevant background and facts) and then explain what is happening now, as mentioned in the article. Write it like you're telling a story to someone who knows nothing about the topic — be factual, clear, and simple. Make sure there are no gaps or unanswered questions. Everything that is listed in the points section must also be explained here in full detail.
-- points: Key facts useful for UPSC or government exams.
-- glossary: All difficult/useful words along with meanings in simple words.
+- description: Full story in simple words — It should explain the entire news article clearly and completely. Start with what happened in the past (give relevant background and facts) and then explain what is happening now, as mentioned in the article. Write it like you're telling a story to someone who knows nothing about the topic — be factual, clear, and simple. Make sure there are no gaps or unanswered questions. After reading the this they should understand everything without  any doubts 
+- points: These points should be like what the aspirants should note down like UPSC and other government exams students . 
+- glossary: All difficult/useful words along with meanings in simple words . 
 
 Very Important:
 - Extract every article in the image.
 - Format output as a JSON array.
 """
+
 
 # === IMAGE ENCODER ===
 def encode_image(image_path):
