@@ -6,6 +6,7 @@ import pandas as pd
 import logging
 from dotenv import load_dotenv
 from typing import List
+from app.classifier import predict_category
 
 # === CONFIGURATION ===
 load_dotenv()  # Load .env file
@@ -49,7 +50,7 @@ def encode_image(image_path):
         return base64.b64encode(img_file.read()).decode("utf-8")
 
 def extract_articles_from_images(image_folder: str, csv_file: str) -> List[dict]:
-    columns = ["articleId", "title", "description", "points", "glossary"]
+    columns = ["articleId", "title", "description", "points", "glossary", "category"]
     if not os.path.exists(csv_file):
         pd.DataFrame(columns=columns).to_csv(csv_file, index=False)
 
@@ -95,12 +96,16 @@ def extract_articles_from_images(image_folder: str, csv_file: str) -> List[dict]
                     rows = []
 
                     for art in articles:
+                        description = art.get("description", "")
+                        category = predict_category(description)  # Classification step
+
                         data = {
                             "articleId": article_id_counter,
                             "title": art.get("title", ""),
-                            "description": art.get("description", ""),
+                            "description": description,
                             "points": "\n".join(art.get("points", [])),
-                            "glossary": json.dumps(art.get("glossary", {}))
+                            "glossary": json.dumps(art.get("glossary", {})),
+                            "category": category
                         }
                         rows.append(data)
                         extracted_articles.append(data)
