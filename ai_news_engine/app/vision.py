@@ -6,41 +6,61 @@ import pandas as pd
 import logging
 from dotenv import load_dotenv
 from typing import List
-from app.classifier import predict_category
+from .classifier import predict_category  # Uses your updated classifier setup
 
 # === CONFIGURATION ===
-load_dotenv()  # Load .env file
-API_KEY = os.getenv("GEMINI_API_KEY")  # Load API key from environment variables
+load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY")
 API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
 
 PROMPT_TEXT = """
-Task: Extract all articles from the given newspaper image and return the output strictly in JSON format.
+Task: Extract all **news articles this is must and should you need to extract all articles expcept ads** from the given newspaper image. Return the output strictly in **JSON format** as a JSON array. Each news article must follow the structure and rules given below.
 
-The JSON format for each article should look like this:
+The format for each article should be:
+
 {
-  "articleId": <sequence_number>,
-  "title": "<exact title as shown in the image>",
-  "description": "<detailed summary starting with historical background and ending with current developments. It should be factual, clear, and comprehensive. Explain like you're narrating to someone unfamiliar with the topic. Don't leave anything out.>",
+  "articleId": <number>,  
+  "title": "<exact title shown in the newspaper image>",
+
+  "involvement": "<List all people, organizations, or groups involved in the article. For each one, write in this format — its name (don't inlcude this label ,mention directly real name): a simple explanation of about it. Use very simple and short sentences.>",
+
+  "past": "<Write a paragraph (minimum 4 lines) explaining the background or past events that led to this news. Use factual and accurate information. Use the internet if needed to get correct context. Write in very simple and clear words — like explaining to someone with no prior knowledge. Do not use bullet points — this should be a short paragraph.>",
+
+  "present": "<Write a detailed paragraph (maximum 10 lines) summarizing what is happening now according to the article. Explain the full content of the article clearly. Keep it short and simple but cover everything. Do not use bullet points — this should be a descriptive paragraph.>",
+
   "points": [
-    "<key point 1>",
-    "<key point 2>"
+    "<you should give minimum 5 important points in very simple words. These points should help students preparing for government exams like UPSC, SSC, etc. Each point must be clearly explained and easy to understand. End each point with a full stop.>"
   ],
-  "glossary": {
-    "<term1>": "<meaning or expansion>",
-    "<term2>": "<meaning or expansion>"
+
+  "glossary": { (you should give minimum 5 english words only not persons or organisation names these should be covered in Involvement section)
+    "<word1>": "<simple meaning or explanation>",
+    "<word2>": "<simple meaning or explanation>",
+    "<abbreviation1>": "<full form and what it means in simple words>",
+    "<...>": "<...>"
   }
 }
 
-Notes:
-- articleId: Must continue from previous input.
-- title: Must match exactly as in image.
-- description: Full story in simple words — It should explain the entire news article clearly and completely. Start with what happened in the past (give relevant background and facts) and then explain what is happening now, as mentioned in the article. Write it like you're telling a story to someone who knows nothing about the topic — be factual, clear, and simple. Make sure there are no gaps or unanswered questions. After reading the this they should understand everything without  any doubts 
-- points: These points should be like what the aspirants should note down like UPSC and other government exams students . 
-- glossary: All difficult/useful words along with meanings in simple words . 
+Important Guidelines:
 
-Very Important:
-- Extract every article in the image.
-- Format output as a JSON array.
+1. The final result must be a **JSON array** — one object per news article.
+2. **title**: Must match exactly as shown in the newspaper image. Do not modify, fix, or translate it.
+3. **involvement**:don't label as name or role etc just mention name directly-about it, List and explain all people, organizations, or entities mentioned in the article. Keep explanations short and very simple.
+4. **past**: Give a short paragraph with 4 or more lines explaining past events related to the article. Keep it factual and easy to read.
+5. **present**: Describe the current news in up to 10 lines. This must be a paragraph that clearly explains everything in the article in simple words.
+6. **points**: minimum 5 key takeaways in very easy English. These should help someone preparing for exams like UPSC or SSC. Each point should be meaningful and informative.
+7. **glossary**: This is a mandatory object. You must minimum 5 terms and above from each article. These can be:
+   - Difficult or unique English words from the article (with simple meanings)
+   - Abbreviations with full forms and simple explanations
+   - Key terms or names (with short descriptions)
+   - don't consider person or group or organisation names glossary should have only english words and its meanings which are extracted from that news article
+
+Additional Instructions:
+- don't repeat the articles multiple times should be extracted once only 
+- tell me all articles from the image no matter they are small or big headings if you see any heading and if it is not ad then consider it 
+- Do NOT include any advertisements or image captions.
+- Extract **all news articles** from the image (ignore ads).
+- All explanations must be **very simple, short, and clear**, as if you are telling a story to someone who doesn’t know anything about the topic.
+- You must strictly follow this format. Only return valid JSON.
 """
 
 
@@ -49,8 +69,10 @@ def encode_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode("utf-8")
 
+# === ARTICLE EXTRACTION FUNCTION ===
 def extract_articles_from_images(image_folder: str, csv_file: str) -> List[dict]:
-    columns = ["articleId", "title", "description", "points", "glossary", "category"]
+    columns = ["articleId", "title", "involvement", "past", "present", "points", "glossary", "category"]
+
     if not os.path.exists(csv_file):
         pd.DataFrame(columns=columns).to_csv(csv_file, index=False)
 
@@ -96,19 +118,22 @@ def extract_articles_from_images(image_folder: str, csv_file: str) -> List[dict]
                     rows = []
 
                     for art in articles:
-                        description = art.get("description", "")
-                        category = predict_category(description)  # Classification step
+                        present_info = art.get("present", "")
+                        category = predict_category(present_info)
 
-                        data = {
+                        row = {
                             "articleId": article_id_counter,
                             "title": art.get("title", ""),
-                            "description": description,
+                            "involvement": art.get("involvement", ""),
+                            "past": art.get("past", ""),
+                            "present": present_info,
                             "points": "\n".join(art.get("points", [])),
                             "glossary": json.dumps(art.get("glossary", {})),
                             "category": category
                         }
-                        rows.append(data)
-                        extracted_articles.append(data)
+
+                        rows.append(row)
+                        extracted_articles.append(row)
                         article_id_counter += 1
 
                     pd.DataFrame(rows).to_csv(csv_file, mode='a', header=False, index=False)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
-from app.vision import extract_articles_from_images
+from .vision import extract_articles_from_images
 import os
 import shutil
 
